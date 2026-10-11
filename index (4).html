@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REST API To-Do Application</title>
+<style>
+  :root {
+    --page: #f2f4f9;
+    --panel: #ffffff;
+    --ink: #17203a;
+    --muted: #5d6784;
+    --line: #dde2ee;
+    --accent: #2b4fd8;
+    --accent-soft: #e6ebfc;
+    --ok: #1f8a5b;
+    --warn: #a9690a;
+    --bad: #c23a3a;
+    --con-bg: #0f1626;
+    --con-line: #243049;
+    --con-ink: #d6ddf0;
+    --con-muted: #8693b3;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 15px/1.5 "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 48px; }
+  header { margin-bottom: 22px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+
+  /* ---------- Add form ---------- */
+  .add { display: flex; gap: 8px; flex-wrap: wrap; }
+  .add input[type=text] { flex: 1 1 220px; }
+  input[type=text], select, textarea {
+    background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; min-width: 0;
+  }
+  input[type=text]:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+  .btn {
+    border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 9px 14px; cursor: pointer; font-weight: 600;
+  }
+  .btn:hover { background: #f6f8fc; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: #2342b8; }
+  .btn.small { padding: 5px 10px; font-size: 13px; }
+  .btn.danger { color: var(--bad); }
+  .field-error { color: var(--bad); font-size: 13px; min-height: 18px; margin: 6px 0 0; }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 14px 0 6px; }
+  .tabs { display: inline-flex; background: var(--page); border-radius: 9px; padding: 3px; }
+  .tabs button { border: 0; background: transparent; padding: 6px 13px; border-radius: 7px; cursor: pointer; color: var(--muted); font-weight: 600; }
+  .tabs button[aria-pressed=true] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(23,32,58,.12); }
+  .search { flex: 1 1 140px; max-width: 220px; }
+
+  /* ---------- Todo list ---------- */
+  ul.todos { list-style: none; margin: 8px 0 0; padding: 0; }
+  .todo { display: flex; align-items: center; gap: 12px; padding: 11px 4px; border-top: 1px solid var(--line); }
+  .todo:first-child { border-top: 0; }
+  .check {
+    flex: none; width: 22px; height: 22px; border-radius: 6px; border: 2px solid #b6bfd6; background: #fff; cursor: pointer; padding: 0;
+    display: grid; place-items: center;
+  }
+  .check[aria-checked=true] { background: var(--ok); border-color: var(--ok); }
+  .check[aria-checked=true]::after { content: ""; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
+  .todo .title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .todo.done .title { color: var(--muted); text-decoration: line-through; }
+  .todo input.edit { flex: 1; }
+  .prio { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .prio.high { color: var(--bad); border-color: #efc4c4; background: #fdf1f1; }
+  .prio.medium { color: var(--warn); border-color: #ecd6ae; background: #fdf7ea; }
+  .prio.low { color: var(--ok); border-color: #bfe2d1; background: #eff9f4; }
+  .actions { display: flex; gap: 6px; }
+  .empty { color: var(--muted); padding: 22px 4px 6px; }
+  .count { color: var(--muted); font-size: 13px; margin: 12px 0 0; }
+
+  /* ---------- Console ---------- */
+  .console { background: var(--con-bg); border-color: var(--con-bg); color: var(--con-ink); position: sticky; top: 16px; }
+  @media (max-width: 900px) { .console { position: static; } }
+  .console h2 { margin: 0 0 2px; font-size: 16px; }
+  .console .sub { margin: 0 0 14px; color: var(--con-muted); font-size: 13px; }
+  .mono { font-family: Consolas, "Cascadia Mono", Menlo, monospace; }
+
+  .builder { display: grid; gap: 8px; margin-bottom: 14px; }
+  .builder .row { display: flex; gap: 8px; }
+  .console select, .console input[type=text], .console textarea {
+    background: #16203a; border-color: var(--con-line); color: var(--con-ink); font-size: 13px;
+  }
+  .console input[type=text]:focus, .console select:focus, .console textarea:focus { border-color: #6b87ff; box-shadow: 0 0 0 3px rgba(107,135,255,.25); }
+  .builder .row input[type=text] { flex: 1; }
+  .builder textarea { width: 100%; min-height: 78px; resize: vertical; }
+  .console .btn { background: #16203a; border-color: var(--con-line); color: var(--con-ink); }
+  .console .btn:hover { background: #1d2a4a; }
+  .console .btn.primary { background: #5575ff; border-color: #5575ff; color: #0b1020; }
+  .console .btn.primary:hover { background: #6f8aff; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+  .presets .btn { font-size: 12px; padding: 4px 9px; font-weight: 500; }
+
+  .log-head { display: flex; justify-content: space-between; align-items: center; margin: 4px 0 8px; color: var(--con-muted); font-size: 13px; }
+  .log-head .btn { font-size: 12px; padding: 3px 9px; }
+  #log { max-height: 440px; overflow: auto; border-top: 1px solid var(--con-line); }
+  #log:empty::before { content: "Requests appear here as you use the app."; display: block; padding: 14px 2px; color: var(--con-muted); font-size: 13px; }
+  details.entry { border-bottom: 1px solid var(--con-line); }
+  details.entry summary { display: flex; gap: 10px; align-items: center; padding: 8px 2px; cursor: pointer; font-size: 13px; list-style: none; }
+  details.entry summary::-webkit-details-marker { display: none; }
+  .m { flex: none; width: 52px; font-weight: 700; }
+  .m.GET { color: #7fb4ff; } .m.POST { color: #6fdca0; } .m.PUT { color: #f2c46d; }
+  .m.PATCH { color: #c9a2ff; } .m.DELETE { color: #ff8b8b; }
+  .path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .st { flex: none; font-weight: 700; }
+  .st.s2 { color: #6fdca0; } .st.s4 { color: #f2c46d; } .st.s5 { color: #ff8b8b; }
+  .ms { flex: none; color: var(--con-muted); width: 52px; text-align: right; }
+  details.entry pre { margin: 0 0 10px; padding: 10px; background: #0a101e; border-radius: 8px; font-size: 12px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  .lbl { color: var(--con-muted); font-size: 12px; margin: 8px 0 3px; }
+
+  footer { margin-top: 26px; color: var(--muted); font-size: 13px; }
+  .notice { background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; color: #22357f; font-size: 13px; margin-top: 14px; max-width: 70ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>To-Do Application</h1>
+    <p>Every action in this app is a REST request to <span class="mono">/api/todos</span>. Watch the requests and status codes in the console on the right.</p>
+    <div class="notice">The API server is simulated inside the browser. Tasks are saved in this browser's local storage, so no installation or network connection is needed.</div>
+  </header>
+
+  <div class="grid">
+    <!-- ================= APP ================= -->
+    <section class="panel" aria-labelledby="tasks-h">
+      <h2 id="tasks-h" style="margin:0 0 12px;font-size:16px">Tasks</h2>
+      <div class="add">
+        <input type="text" id="new-title" placeholder="What needs doing?" aria-label="New task title" maxlength="200" autocomplete="off">
+        <select id="new-prio" aria-label="Priority">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+        <button class="btn primary" id="add-btn" type="button">Add task</button>
+      </div>
+      <p class="field-error" id="add-error" role="alert"></p>
+
+      <div class="toolbar">
+        <div class="tabs" role="group" aria-label="Filter tasks">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="active" aria-pressed="false">Active</button>
+          <button type="button" data-filter="done" aria-pressed="false">Done</button>
+        </div>
+        <input type="text" class="search" id="search" placeholder="Search tasks" aria-label="Search tasks" autocomplete="off">
+      </div>
+
+      <ul class="todos" id="list"></ul>
+      <p class="count" id="count"></p>
+      <div style="margin-top:12px">
+        <button class="btn small danger" type="button" id="clear-done">Delete completed tasks</button>
+      </div>
+    </section>
+
+    <!-- ================= CONSOLE ================= -->
+    <aside class="panel console" aria-labelledby="con-h">
+      <h2 id="con-h">API console</h2>
+      <p class="sub">Send your own requests, or load an example.</p>
+
+      <div class="builder">
+        <div class="row">
+          <select id="c-method" aria-label="HTTP method">
+            <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option>
+          </select>
+          <input type="text" id="c-url" class="mono" value="/api/todos" aria-label="Request URL" spellcheck="false" autocomplete="off">
+          <button class="btn primary" id="c-send" type="button">Send</button>
+        </div>
+        <textarea id="c-body" class="mono" placeholder='Request body (JSON), e.g. {"title": "Buy milk"}' aria-label="Request body" spellcheck="false"></textarea>
+        <div class="presets" id="presets"></div>
+      </div>
+
+      <div class="log-head">
+        <span>Request log</span>
+        <button class="btn" type="button" id="clear-log">Clear log</button>
+      </div>
+      <div id="log" class="mono"></div>
+
+      <div style="margin-top:14px">
+        <button class="btn" type="button" id="reset">Reset demo data</button>
+      </div>
+    </aside>
+  </div>
+
+  <footer>Endpoints: GET/POST <span class="mono">/api/todos</span> &middot; GET/PUT/PATCH/DELETE <span class="mono">/api/todos/:id</span> &middot; DELETE <span class="mono">/api/todos?completed=true</span></footer>
+</div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   1. SIMULATED SERVER
+   Everything in this section stands in for a backend. It receives a
+   request {method, url, body}, and returns {status, headers, body},
+   exactly as a real HTTP server would. Data lives in localStorage.
+   ===================================================================== */
+
+const STATUS_TEXT = {
+  200: "OK", 201: "Created", 204: "No Content",
+  400: "Bad Request", 404: "Not Found", 405: "Method Not Allowed", 422: "Unprocessable Entity"
+};
+const PRIORITIES = ["low", "medium", "high"];
+const STORE_KEY = "todo-rest-api-demo-v1";
+const memoryStore = {};
+
+function seed() {
+  const now = new Date().toISOString();
+  return {
+    nextId: 4,
+    todos: [
+      { id: 1, title: "Read the API documentation", completed: true,  priority: "low",    createdAt: now, updatedAt: now },
+      { id: 2, title: "Add your first task",        completed: false, priority: "medium", createdAt: now, updatedAt: now },
+      { id: 3, title: "Try a request that fails",   completed: false, priority: "high",   createdAt: now, updatedAt: now }
+    ]
+  };
+}
+function readDb() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* storage unavailable: fall back to memory */ }
+  return memoryStore.db || seed();
+}
+function writeDb(db) {
+  memoryStore.db = db;
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(db)); } catch (e) { /* ignore */ }
+}
+function resetDb() { writeDb(seed()); }
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const reply = (status, body = null, headers = {}) => ({ status, body, headers });
+const fail = (status, message, details) => reply(status, details ? { error: message, details } : { error: message });
+
+/* Validation: returns an array of problems (empty = valid). */
+function validate(data, { partial }) {
+  const problems = [];
+  if (!partial || "title" in data) {
+    if (typeof data.title !== "string" || data.title.trim() === "") problems.push("title is required and must be a non-empty string");
+    else if (data.title.trim().length > 120) problems.push("title must be 120 characters or fewer");
+  }
+  if ("completed" in data && typeof data.completed !== "boolean") problems.push("completed must be true or false");
+  if ("priority" in data && !PRIORITIES.includes(data.priority)) problems.push("priority must be one of: " + PRIORITIES.join(", "));
+  return problems;
+}
+
+/* Parses the request body the way a server would. Returns {data} or {error}. */
+function parseBody(raw) {
+  if (raw === undefined || raw === null || String(raw).trim() === "") return { error: fail(400, "Request body is required") };
+  let data;
+  try { data = JSON.parse(raw); } catch (e) { return { error: fail(400, "Malformed JSON in request body") }; }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) return { error: fail(400, "Request body must be a JSON object") };
+  return { data };
+}
+
+const Server = {
+  async handle({ method, url, body }) {
+    await sleep(60 + Math.random() * 140); // simulated network latency
+
+    const u = new URL(url, "http://localhost");
+    const path = u.pathname.replace(/\/+$/, "") || "/";
+    const query = Object.fromEntries(u.searchParams);
+    method = method.toUpperCase();
+
+    const collection = path === "/api/todos";
+    const item = path.match(/^\/api\/todos\/([^/]+)$/);
+
+    if (collection) {
+      switch (method) {
+        case "GET":    return this.list(query);
+        case "POST":   return this.create(body);
+        case "DELETE": return this.removeMany(query);
+        default:       return reply(405, { error: "Method not allowed" }, { Allow: "GET, POST, DELETE" });
+      }
+    }
+    if (item) {
+      const rawId = decodeURIComponent(item[1]);
+      if (!/^\d+$/.test(rawId)) return fail(400, "Todo id must be a positive integer");
+      const id = Number(rawId);
+      switch (method) {
+        case "GET":    return this.get(id);
+        case "PUT":    return this.update(id, body, false);
+        case "PATCH":  return this.update(id, body, true);
+        case "DELETE": return this.remove(id);
+        default:       return reply(405, { error: "Method not allowed" }, { Allow: "GET, PUT, PATCH, DELETE" });
+      }
+    }
+    return fail(404, "No route matches " + method + " " + path);
+  },
+
+  list(query) {
+    let todos = readDb().todos;
+    if (query.completed === "true")  todos = todos.filter(t => t.completed);
+    if (query.completed === "false") todos = todos.filter(t => !t.completed);
+    if (query.search) {
+      const q = query.search.toLowerCase();
+      todos = todos.filter(t => t.title.toLowerCase().includes(q));
+    }
+    return reply(200, { count: todos.length, data: todos });
+  },
+
+  get(id) {
+    const todo = readDb().todos.find(t => t.id === id);
+    return todo ? reply(200, todo) : fail(404, "Todo " + id + " not found");
+  },
+
+  create(raw) {
+    const parsed = parseBody(raw);
+    if (parsed.error) return parsed.error;
+    const problems = validate(parsed.data, { partial: false });
+    if (problems.length) return fail(422, "Validation failed", problems);
+
+    const db = readDb();
+    const now = new Date().toISOString();
+    const todo = {
+      id: db.nextId++,
+      title: parsed.data.title.trim(),
+      completed: parsed.data.completed === true,
+      priority: parsed.data.priority || "medium",
+      createdAt: now,
+      updatedAt: now
+    };
+    db.todos.push(todo);
+    writeDb(db);
+    return reply(201, todo, { Location: "/api/todos/" + todo.id });
+  },
+
+  update(id, raw, partial) {
+    const parsed = parseBody(raw);
+    if (parsed.error) return parsed.error;
+    const problems = validate(parsed.data, { partial });
+    if (partial && !("title" in parsed.data) && !("completed" in parsed.data) && !("priority" in parsed.data))
+      problems.push("send at least one of: title, completed, priority");
+    if (problems.length) return fail(422, "Validation failed", problems);
+
+    const db = readDb();
+    const todo = db.todos.find(t => t.id === id);
+    if (!todo) return fail(404, "Todo " + id + " not found");
+
+    if (partial) {            // PATCH: change only what was sent
+      if ("title" in parsed.data)     todo.title = parsed.data.title.trim();
+      if ("completed" in parsed.data) todo.completed = parsed.data.completed;
+      if ("priority" in parsed.data)  todo.priority = parsed.data.priority;
+    } else {                  // PUT: replace the whole resource
+      todo.title = parsed.data.title.trim();
+      todo.completed = parsed.data.completed === true;
+      todo.priority = parsed.data.priority || "medium";
+    }
+    todo.updatedAt = new Date().toISOString();
+    writeDb(db);
+    return reply(200, todo);
+  },
+
+  remove(id) {
+    const db = readDb();
+    const index = db.todos.findIndex(t => t.id === id);
+    if (index === -1) return fail(404, "Todo " + id + " not found");
+    db.todos.splice(index, 1);
+    writeDb(db);
+    return reply(204);
+  },
+
+  removeMany(query) {
+    if (query.completed !== "true") return fail(400, "Bulk delete requires ?completed=true");
+    const db = readDb();
+    const before = db.todos.length;
+    db.todos = db.todos.filter(t => !t.completed);
+    writeDb(db);
+    return reply(200, { deleted: before - db.todos.length });
+  }
+};
+
+/* =====================================================================
+   2. CLIENT API HELPER
+   Sends a request to the (simulated) server and records it in the log.
+   Request bodies are sent as JSON strings, as with a real fetch().
+   ===================================================================== */
+
+async function api(method, url, bodyObject) {
+  const body = bodyObject === undefined ? undefined : JSON.stringify(bodyObject);
+  return send(method, url, body);
+}
+async function send(method, url, body) {
+  const t0 = performance.now();
+  const res = await Server.handle({ method, url, body });
+  const ms = Math.round(performance.now() - t0);
+  logEntry({ method, url, body, res, ms });
+  return { status: res.status, ok: res.status >= 200 && res.status < 300, data: res.body };
+}
+
+/* =====================================================================
+   3. REQUEST LOG (console panel)
+   ===================================================================== */
+
+const $ = sel => document.querySelector(sel);
+function h(tag, props = {}, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") el.className = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) el.setAttribute(k, v === true ? "" : v);
+  }
+  kids.flat().forEach(kid => el.append(kid));
+  return el;
+}
+function pretty(value) {
+  if (value === undefined || value === null || value === "") return "(empty)";
+  try { return JSON.stringify(typeof value === "string" ? JSON.parse(value) : value, null, 2); }
+  catch (e) { return String(value); }
+}
+function logEntry({ method, url, body, res, ms }, open = false) {
+  const cls = "s" + String(res.status)[0];
+  const headerLines = Object.entries(res.headers || {}).map(([k, v]) => k + ": " + v).join("\n");
+  const entry = h("details", { class: "entry", open },
+    h("summary", {},
+      h("span", { class: "m " + method }, method),
+      h("span", { class: "path", title: url }, url),
+      h("span", { class: "st " + cls }, res.status + " " + (STATUS_TEXT[res.status] || "")),
+      h("span", { class: "ms" }, ms + " ms")),
+    body !== undefined ? [h("div", { class: "lbl" }, "Request body"), h("pre", {}, pretty(body))] : [],
+    headerLines ? [h("div", { class: "lbl" }, "Response headers"), h("pre", {}, headerLines)] : [],
+    h("div", { class: "lbl" }, "Response body"),
+    h("pre", {}, pretty(res.body)));
+  const log = $("#log");
+  log.prepend(entry);
+  while (log.children.length > 60) log.lastChild.remove();
+}
+
+/* =====================================================================
+   4. APP UI
+   ===================================================================== */
+
+const state = { filter: "all", search: "", editingId: null };
+
+function listUrl() {
+  const params = new URLSearchParams();
+  if (state.filter === "active") params.set("completed", "false");
+  if (state.filter === "done")   params.set("completed", "true");
+  if (state.search.trim())       params.set("search", state.search.trim());
+  const qs = params.toString();
+  return "/api/todos" + (qs ? "?" + qs : "");
+}
+
+async function refresh() {
+  const res = await api("GET", listUrl());
+  if (!res.ok) { $("#count").textContent = "Could not load tasks."; return; }
+  renderList(res.data.data);
+}
+
+function renderList(todos) {
+  const list = $("#list");
+  list.replaceChildren();
+
+  if (todos.length === 0) {
+    const msg = state.search.trim() ? "No tasks match your search."
+      : state.filter === "done" ? "Nothing is completed yet."
+      : state.filter === "active" ? "All caught up. Nothing left to do."
+      : "No tasks yet. Add one above.";
+    list.append(h("li", { class: "empty" }, msg));
+  }
+
+  for (const todo of todos) {
+    const editing = state.editingId === todo.id;
+    const check = h("button", {
+      class: "check", type: "button", role: "checkbox",
+      "aria-checked": String(todo.completed),
+      "aria-label": (todo.completed ? "Mark as not done: " : "Mark as done: ") + todo.title,
+      onclick: async () => { await api("PATCH", "/api/todos/" + todo.id, { completed: !todo.completed }); refresh(); }
+    });
+
+    let middle, actions;
+    if (editing) {
+      const input = h("input", { type: "text", class: "edit", value: todo.title, maxlength: "200", "aria-label": "Edit task title" });
+      const save = async () => {
+        const res = await api("PUT", "/api/todos/" + todo.id,
+          { title: input.value, completed: todo.completed, priority: todo.priority });
+        if (res.ok) { state.editingId = null; refresh(); }
+        else { input.style.borderColor = "var(--bad)"; input.title = (res.data.details || [res.data.error]).join("; "); }
+      };
+      input.addEventListener("keydown", e => {
+        if (e.key === "Enter") save();
+        if (e.key === "Escape") { state.editingId = null; refresh(); }
+      });
+      middle = input;
+      actions = [
+        h("button", { class: "btn small primary", type: "button", onclick: save }, "Save"),
+        h("button", { class: "btn small", type: "button", onclick: () => { state.editingId = null; refresh(); } }, "Cancel")
+      ];
+      setTimeout(() => { input.focus(); input.select(); }, 0);
+    } else {
+      middle = h("span", { class: "title" }, todo.title);
+      actions = [
+        h("button", { class: "btn small", type: "button", onclick: () => { state.editingId = todo.id; refresh(); } }, "Edit"),
+        h("button", { class: "btn small danger", type: "button", "aria-label": "Delete " + todo.title,
+          onclick: async () => { await api("DELETE", "/api/todos/" + todo.id); refresh(); } }, "Delete")
+      ];
+    }
+
+    list.append(h("li", { class: "todo" + (todo.completed ? " done" : "") },
+      check, middle,
+      h("span", { class: "prio " + todo.priority }, todo.priority),
+      h("span", { class: "actions" }, actions)));
+  }
+
+  $("#count").textContent = todos.length + (todos.length === 1 ? " task shown" : " tasks shown");
+}
+
+/* ---- Add ---- */
+async function addTask() {
+  const input = $("#new-title");
+  const res = await api("POST", "/api/todos", { title: input.value, priority: $("#new-prio").value });
+  if (res.ok) { input.value = ""; $("#add-error").textContent = ""; input.focus(); refresh(); }
+  else { $("#add-error").textContent = (res.data.details || [res.data.error]).join(". "); }
+}
+$("#add-btn").addEventListener("click", addTask);
+$("#new-title").addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
+
+/* ---- Filters and search ---- */
+document.querySelectorAll(".tabs button").forEach(btn => btn.addEventListener("click", () => {
+  state.filter = btn.dataset.filter;
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+  refresh();
+}));
+let searchTimer;
+$("#search").addEventListener("input", e => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { state.search = e.target.value; refresh(); }, 250);
+});
+
+/* ---- Bulk delete ---- */
+$("#clear-done").addEventListener("click", async () => { await api("DELETE", "/api/todos?completed=true"); refresh(); });
+
+/* =====================================================================
+   5. CONSOLE CONTROLS
+   ===================================================================== */
+
+$("#c-send").addEventListener("click", async () => {
+  const method = $("#c-method").value;
+  const url = $("#c-url").value.trim() || "/";
+  const raw = $("#c-body").value;
+  const body = raw.trim() === "" ? undefined : raw;   // sent exactly as typed, so bad JSON gets a real 400
+  const t0 = performance.now();
+  const res = await Server.handle({ method, url, body });
+  logEntry({ method, url, body, res, ms: Math.round(performance.now() - t0) }, true);
+  refresh();
+});
+
+const PRESETS = [
+  { label: "List all",        method: "GET",    url: "/api/todos" },
+  { label: "Get one",         method: "GET",    url: "/api/todos/1" },
+  { label: "Create",          method: "POST",   url: "/api/todos", body: '{\n  "title": "Write the README",\n  "priority": "high"\n}' },
+  { label: "Invalid (422)",   method: "POST",   url: "/api/todos", body: '{\n  "title": "",\n  "priority": "urgent"\n}' },
+  { label: "Bad JSON (400)",  method: "POST",   url: "/api/todos", body: '{ "title": ' },
+  { label: "Not found (404)", method: "GET",    url: "/api/todos/999" },
+  { label: "Replace (PUT)",   method: "PUT",    url: "/api/todos/2", body: '{\n  "title": "Add two tasks",\n  "completed": false,\n  "priority": "medium"\n}' },
+  { label: "Update (PATCH)",  method: "PATCH",  url: "/api/todos/2", body: '{\n  "completed": true\n}' },
+  { label: "Delete",          method: "DELETE", url: "/api/todos/3" }
+];
+PRESETS.forEach(p => $("#presets").append(h("button", {
+  class: "btn", type: "button",
+  onclick: () => { $("#c-method").value = p.method; $("#c-url").value = p.url; $("#c-body").value = p.body || ""; }
+}, p.label)));
+
+$("#clear-log").addEventListener("click", () => $("#log").replaceChildren());
+$("#reset").addEventListener("click", () => { resetDb(); state.editingId = null; $("#log").replaceChildren(); refresh(); });
+
+/* ---- Start ---- */
+if (!localStorage.getItem(STORE_KEY)) { try { resetDb(); } catch (e) {} }
+refresh();
+</script>
+</body>
+</html>
